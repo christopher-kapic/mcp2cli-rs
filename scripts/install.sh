@@ -5,6 +5,9 @@ REPO="christopher-kapic/mcp2cli-rs"
 INSTALL_DIR="${INSTALL_DIR:-/usr/local/bin}"
 BINARY="mcp2cli"
 
+CLEANUP_DIR=""
+trap 'rm -rf "$CLEANUP_DIR"' EXIT
+
 main() {
   local version="${1:-latest}"
 
@@ -13,9 +16,8 @@ main() {
 
   echo "Installing ${BINARY} ${VERSION} for ${TARGET}..."
 
-  local tmp
-  tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' EXIT
+  CLEANUP_DIR="$(mktemp -d)"
+  local tmp="$CLEANUP_DIR"
 
   local tarball="${BINARY}-${TARGET}.tar.gz"
   local url="https://github.com/${REPO}/releases/download/${VERSION}/${tarball}"
