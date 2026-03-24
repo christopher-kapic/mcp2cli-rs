@@ -24,7 +24,7 @@ fn version_prints_version() {
         .assert()
         .success()
         .stdout(predicate::str::contains("mcp2cli"))
-        .stdout(predicate::str::contains("0.1.0"));
+        .stdout(predicate::str::contains(env!("CARGO_PKG_VERSION")));
 }
 
 #[test]
