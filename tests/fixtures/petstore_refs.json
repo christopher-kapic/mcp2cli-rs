@@ -1,0 +1,79 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Petstore with Refs",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/pets": {
+      "get": {
+        "operationId": "listPets",
+        "summary": "List all pets",
+        "parameters": [
+          { "$ref": "#/components/parameters/LimitParam" }
+        ]
+      },
+      "post": {
+        "operationId": "createPet",
+        "summary": "Create a pet",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/Pet" }
+            }
+          }
+        }
+      }
+    },
+    "/pets/{petId}": {
+      "parameters": [
+        { "$ref": "#/components/parameters/PetIdParam" }
+      ],
+      "get": {
+        "operationId": "getPetById",
+        "summary": "Get a pet by ID"
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "LimitParam": {
+        "name": "limit",
+        "in": "query",
+        "schema": { "type": "integer" }
+      },
+      "PetIdParam": {
+        "name": "petId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "integer" }
+      }
+    },
+    "schemas": {
+      "Pet": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "tag": { "type": "string" },
+          "owner": { "$ref": "#/components/schemas/Owner" }
+        }
+      },
+      "Owner": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "email": { "type": "string" }
+        }
+      },
+      "Node": {
+        "type": "object",
+        "properties": {
+          "value": { "type": "string" },
+          "child": { "$ref": "#/components/schemas/Node" }
+        }
+      }
+    }
+  }
+}
