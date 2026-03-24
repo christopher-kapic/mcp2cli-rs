@@ -1,14 +1,47 @@
 name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    branches: [master]
+    paths: [Cargo.toml]
 
 permissions:
   contents: write
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.version.outputs.changed }}
+      version: ${{ steps.version.outputs.current }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Check for version change
+        id: version
+        run: |
+          current="$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          previous="$(git show HEAD~1:Cargo.toml | grep '^version' | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+          echo "current=${current}" >> "$GITHUB_OUTPUT"
+          if [ "$current" != "$previous" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="v${{ steps.version.outputs.current }}"
+          gh release create "$version" --generate-notes --title "$version"
+
   build:
+    needs: create-release
+    if: needs.create-release.outputs.changed == 'true'
     strategy:
       matrix:
         include:
@@ -53,4 +86,4 @@ jobs:
       - name: Upload release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" mcp2cli-${{ matrix.target }}.tar.gz mcp2cli-${{ matrix.target }}.tar.gz.sha256
+        run: gh release upload "v${{ needs.create-release.outputs.version }}" mcp2cli-${{ matrix.target }}.tar.gz mcp2cli-${{ matrix.target }}.tar.gz.sha256
