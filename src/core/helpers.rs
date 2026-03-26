@@ -45,14 +45,18 @@ pub fn resolve_secret(value: &str) -> Result<String> {
     }
 }
 
-/// Parse "Key:Value" pairs into a HashMap.
+/// Parse key-value pairs into a HashMap, splitting on the given `delimiter`.
 /// When `resolve_values` is true, each value is passed through [`resolve_secret`]
 /// so that `env:VAR` and `file:/path` prefixes are resolved at runtime.
-pub fn parse_kv_list(items: &[String], resolve_values: bool) -> HashMap<String, String> {
+pub fn parse_kv_list(
+    items: &[String],
+    delimiter: char,
+    resolve_values: bool,
+) -> HashMap<String, String> {
     items
         .iter()
         .filter_map(|item| {
-            let (k, v) = item.split_once(':')?;
+            let (k, v) = item.split_once(delimiter)?;
             let v = v.trim().to_string();
             let v = if resolve_values {
                 match resolve_secret(&v) {
@@ -92,16 +96,24 @@ mod tests {
     #[test]
     fn test_parse_kv_list() {
         let items = vec!["Authorization: Bearer abc".into(), "X-Api-Key:123".into()];
-        let map = parse_kv_list(&items, false);
+        let map = parse_kv_list(&items, ':', false);
         assert_eq!(map.get("Authorization").unwrap(), "Bearer abc");
         assert_eq!(map.get("X-Api-Key").unwrap(), "123");
+    }
+
+    #[test]
+    fn test_parse_kv_list_equals_delimiter() {
+        let items = vec!["key1=value1".into(), "key2=value2".into()];
+        let map = parse_kv_list(&items, '=', false);
+        assert_eq!(map.get("key1").unwrap(), "value1");
+        assert_eq!(map.get("key2").unwrap(), "value2");
     }
 
     #[test]
     fn test_parse_kv_list_resolve_env() {
         std::env::set_var("MCP2CLI_TEST_KV", "resolved-token");
         let items = vec!["Authorization: Bearer env:MCP2CLI_TEST_KV".into()];
-        let map = parse_kv_list(&items, true);
+        let map = parse_kv_list(&items, ':', true);
         assert_eq!(
             map.get("Authorization").unwrap(),
             "Bearer resolved-token"

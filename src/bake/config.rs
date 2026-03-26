@@ -109,17 +109,11 @@ pub fn mask_secrets(config: &BakeConfig) -> BakeConfig {
     masked.auth_headers = config
         .auth_headers
         .iter()
-        .map(|h| {
-            if let Some(colon_pos) = h.find(':') {
-                let key = &h[..colon_pos];
-                let value = h[colon_pos + 1..].trim();
-                if is_secret_value(value) {
-                    format!("{key}: ***")
-                } else {
-                    h.clone()
-                }
+        .map(|(key, value)| {
+            if is_secret_value(value) {
+                (key.clone(), "***".to_string())
             } else {
-                h.clone()
+                (key.clone(), value.clone())
             }
         })
         .collect();
@@ -248,17 +242,20 @@ mod tests {
             source_type: "mcp".to_string(),
             source: "https://example.com".to_string(),
             auth_headers: vec![
-                "Authorization: env:MY_TOKEN".to_string(),
-                "X-Custom: short".to_string(),
-                "X-Key: this-is-a-very-long-secret-token-value".to_string(),
+                ("Authorization".to_string(), "env:MY_TOKEN".to_string()),
+                ("X-Custom".to_string(), "short".to_string()),
+                (
+                    "X-Key".to_string(),
+                    "this-is-a-very-long-secret-token-value".to_string(),
+                ),
             ],
             oauth_client_secret: Some("super-secret".to_string()),
             ..Default::default()
         };
         let masked = mask_secrets(&config);
-        assert_eq!(masked.auth_headers[0], "Authorization: ***");
-        assert_eq!(masked.auth_headers[1], "X-Custom: short");
-        assert_eq!(masked.auth_headers[2], "X-Key: ***");
+        assert_eq!(masked.auth_headers[0], ("Authorization".to_string(), "***".to_string()));
+        assert_eq!(masked.auth_headers[1], ("X-Custom".to_string(), "short".to_string()));
+        assert_eq!(masked.auth_headers[2], ("X-Key".to_string(), "***".to_string()));
         assert_eq!(masked.oauth_client_secret, Some("***".to_string()));
     }
 }

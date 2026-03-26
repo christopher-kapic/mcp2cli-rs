@@ -93,19 +93,6 @@ pub struct Cli {
     #[arg(long = "transport", default_value = "auto")]
     pub transport: String,
 
-    // Filtering
-    /// Include only commands matching glob pattern (comma-separated or repeated)
-    #[arg(long = "include", num_args = 1, value_delimiter = ',')]
-    pub include: Vec<String>,
-
-    /// Exclude commands matching glob pattern (comma-separated or repeated)
-    #[arg(long = "exclude", num_args = 1, value_delimiter = ',')]
-    pub exclude: Vec<String>,
-
-    /// Filter by HTTP methods (OpenAPI only)
-    #[arg(long = "methods", num_args = 1)]
-    pub methods: Vec<String>,
-
     // Env/base
     /// Environment variables in "KEY=VALUE" format
     #[arg(long = "env", num_args = 1)]
@@ -137,7 +124,7 @@ pub struct Cli {
     #[arg(long = "get-prompt")]
     pub get_prompt: Option<String>,
 
-    /// Prompt arguments in "key:value" format
+    /// Prompt arguments in "KEY=VALUE" format
     #[arg(long = "prompt-arg", num_args = 1)]
     pub prompt_arg: Vec<String>,
 

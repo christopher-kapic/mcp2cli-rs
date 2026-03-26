@@ -57,7 +57,7 @@ pub struct BakeConfig {
     pub source_type: String,
     pub source: String,
     #[serde(default)]
-    pub auth_headers: Vec<String>,
+    pub auth_headers: Vec<(String, String)>,
     #[serde(default)]
     pub env_vars: HashMap<String, String>,
     #[serde(default)]

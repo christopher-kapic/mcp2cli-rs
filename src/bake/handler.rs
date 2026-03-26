@@ -79,9 +79,16 @@ fn parse_bake_args_inner(
                 config.source = next_val(args, &mut i, "--graphql")?;
             }
             "--auth-header" => {
-                config
-                    .auth_headers
-                    .push(next_val(args, &mut i, "--auth-header")?);
+                let val = next_val(args, &mut i, "--auth-header")?;
+                if let Some((k, v)) = val.split_once(':') {
+                    config
+                        .auth_headers
+                        .push((k.trim().to_string(), v.trim().to_string()));
+                } else {
+                    return Err(AppError::Cli(format!(
+                        "Invalid --auth-header format: expected 'Key:Value', got '{val}'"
+                    )));
+                }
             }
             "--env" => {
                 let val = next_val(args, &mut i, "--env")?;
@@ -317,9 +324,9 @@ pub fn baked_to_argv(config: &BakeConfig) -> Vec<String> {
     }
 
     // Auth headers
-    for header in &config.auth_headers {
+    for (name, value) in &config.auth_headers {
         argv.push("--auth-header".to_string());
-        argv.push(header.clone());
+        argv.push(format!("{name}:{value}"));
     }
 
     // Transport
@@ -351,19 +358,7 @@ pub fn baked_to_argv(config: &BakeConfig) -> Vec<String> {
         argv.push(scope.clone());
     }
 
-    // Include/exclude/methods
-    for inc in &config.include {
-        argv.push("--include".to_string());
-        argv.push(inc.clone());
-    }
-    for exc in &config.exclude {
-        argv.push("--exclude".to_string());
-        argv.push(exc.clone());
-    }
-    for method in &config.methods {
-        argv.push("--methods".to_string());
-        argv.push(method.clone());
-    }
+    // Note: include/exclude/methods are applied via BakeConfig object, not CLI args
 
     // Base URL
     if let Some(ref base_url) = config.base_url {
@@ -401,7 +396,10 @@ mod tests {
         assert_eq!(config.source_type, "mcp");
         assert_eq!(config.source, "https://example.com/mcp");
         assert_eq!(config.auth_headers.len(), 1);
-        assert_eq!(config.auth_headers[0], "Authorization: Bearer token123");
+        assert_eq!(
+            config.auth_headers[0],
+            ("Authorization".to_string(), "Bearer token123".to_string())
+        );
         assert_eq!(config.transport, Some("sse".to_string()));
     }
 
@@ -488,7 +486,7 @@ mod tests {
         let config = BakeConfig {
             source_type: "mcp".to_string(),
             source: "https://example.com/mcp".to_string(),
-            auth_headers: vec!["Authorization: Bearer tok".to_string()],
+            auth_headers: vec![("Authorization".to_string(), "Bearer tok".to_string())],
             transport: Some("sse".to_string()),
             cache_ttl: Some(600),
             include: vec!["tool-*".to_string()],
@@ -501,12 +499,14 @@ mod tests {
         assert!(argv.contains(&"--mcp".to_string()));
         assert!(argv.contains(&"https://example.com/mcp".to_string()));
         assert!(argv.contains(&"--auth-header".to_string()));
+        assert!(argv.contains(&"Authorization:Bearer tok".to_string()));
         assert!(argv.contains(&"--transport".to_string()));
         assert!(argv.contains(&"sse".to_string()));
         assert!(argv.contains(&"--cache-ttl".to_string()));
         assert!(argv.contains(&"600".to_string()));
-        assert!(argv.contains(&"--include".to_string()));
-        assert!(argv.contains(&"--exclude".to_string()));
+        // include/exclude/methods are NOT emitted to argv (applied via BakeConfig object)
+        assert!(!argv.contains(&"--include".to_string()));
+        assert!(!argv.contains(&"--exclude".to_string()));
         assert!(argv.contains(&"--oauth".to_string()));
         assert!(argv.contains(&"--oauth-client-id".to_string()));
     }
@@ -552,7 +552,7 @@ mod tests {
         let base = BakeConfig {
             source_type: "mcp".to_string(),
             source: "https://old.example.com".to_string(),
-            auth_headers: vec!["Old: header".to_string()],
+            auth_headers: vec![("Old".to_string(), "header".to_string())],
             description: Some("old desc".to_string()),
             ..Default::default()
         };

@@ -67,7 +67,7 @@ async fn test_create_and_load() {
             source_type: "mcp".to_string(),
             source: "https://example.com/mcp".to_string(),
             description: Some("A test API".to_string()),
-            auth_headers: vec!["Authorization: Bearer tok".to_string()],
+            auth_headers: vec![("Authorization".to_string(), "Bearer tok".to_string())],
             transport: Some("sse".to_string()),
             cache_ttl: Some(600),
             ..Default::default()
@@ -211,7 +211,7 @@ async fn test_update_existing() {
         BakeConfig {
             source_type: "mcp".to_string(),
             source: "https://old.example.com".to_string(),
-            auth_headers: vec!["Authorization: Bearer old-tok".to_string()],
+            auth_headers: vec![("Authorization".to_string(), "Bearer old-tok".to_string())],
             description: Some("old desc".to_string()),
             ..Default::default()
         },
@@ -236,7 +236,7 @@ async fn test_update_existing() {
     assert_eq!(loaded.description.as_deref(), Some("new desc"));
     assert_eq!(
         loaded.auth_headers,
-        vec!["Authorization: Bearer old-tok".to_string()]
+        vec![("Authorization".to_string(), "Bearer old-tok".to_string())]
     );
 }
 
@@ -247,7 +247,7 @@ fn test_round_trip_mcp() {
     let config = BakeConfig {
         source_type: "mcp".to_string(),
         source: "https://example.com/mcp".to_string(),
-        auth_headers: vec!["Authorization: Bearer token123".to_string()],
+        auth_headers: vec![("Authorization".to_string(), "Bearer token123".to_string())],
         transport: Some("sse".to_string()),
         cache_ttl: Some(300),
         include: vec!["tool-*".to_string()],
@@ -265,18 +265,15 @@ fn test_round_trip_mcp() {
     assert!(argv.contains(&"--mcp".to_string()));
     assert!(argv.contains(&"https://example.com/mcp".to_string()));
     assert!(argv.contains(&"--auth-header".to_string()));
-    assert!(argv.contains(&"Authorization: Bearer token123".to_string()));
+    assert!(argv.contains(&"Authorization:Bearer token123".to_string()));
     assert!(argv.contains(&"--transport".to_string()));
     assert!(argv.contains(&"sse".to_string()));
     assert!(argv.contains(&"--cache-ttl".to_string()));
     assert!(argv.contains(&"300".to_string()));
-    assert!(argv.contains(&"--include".to_string()));
-    assert!(argv.contains(&"tool-*".to_string()));
-    assert!(argv.contains(&"--exclude".to_string()));
-    assert!(argv.contains(&"internal-*".to_string()));
-    assert!(argv.contains(&"--methods".to_string()));
-    assert!(argv.contains(&"GET".to_string()));
-    assert!(argv.contains(&"POST".to_string()));
+    // include/exclude/methods are NOT emitted to argv (applied via BakeConfig object)
+    assert!(!argv.contains(&"--include".to_string()));
+    assert!(!argv.contains(&"--exclude".to_string()));
+    assert!(!argv.contains(&"--methods".to_string()));
     assert!(argv.contains(&"--oauth".to_string()));
     assert!(argv.contains(&"--oauth-client-id".to_string()));
     assert!(argv.contains(&"my-client".to_string()));
@@ -344,7 +341,9 @@ fn test_round_trip_env_vars() {
 // ── Filter application from baked config ─────────────────────────────────────
 
 #[test]
-fn test_baked_config_filters_in_argv() {
+fn test_baked_config_filters_not_in_argv() {
+    // Filters (include/exclude/methods) are applied via BakeConfig object,
+    // not emitted as CLI args — matching Python behavior.
     let config = BakeConfig {
         source_type: "spec".to_string(),
         source: "https://api.example.com/spec.json".to_string(),
@@ -355,19 +354,14 @@ fn test_baked_config_filters_in_argv() {
     };
     let argv = baked_to_argv(&config);
 
-    // Count --include occurrences
-    let include_count = argv.iter().filter(|a| a.as_str() == "--include").count();
-    assert_eq!(include_count, 2);
-    assert!(argv.contains(&"pets-*".to_string()));
-    assert!(argv.contains(&"users-*".to_string()));
+    // Filters should NOT appear in argv
+    assert!(!argv.contains(&"--include".to_string()));
+    assert!(!argv.contains(&"--exclude".to_string()));
+    assert!(!argv.contains(&"--methods".to_string()));
 
-    let exclude_count = argv.iter().filter(|a| a.as_str() == "--exclude").count();
-    assert_eq!(exclude_count, 1);
-    assert!(argv.contains(&"admin-*".to_string()));
-
-    let methods_count = argv.iter().filter(|a| a.as_str() == "--methods").count();
-    assert_eq!(methods_count, 1);
-    assert!(argv.contains(&"GET".to_string()));
+    // Source should still be present
+    assert!(argv.contains(&"--spec".to_string()));
+    assert!(argv.contains(&"https://api.example.com/spec.json".to_string()));
 }
 
 // ── Secret masking ───────────────────────────────────────────────────────────
@@ -377,11 +371,14 @@ fn test_mask_secrets_env_prefix() {
     let config = BakeConfig {
         source_type: "mcp".to_string(),
         source: "https://example.com".to_string(),
-        auth_headers: vec!["Authorization: env:MY_TOKEN".to_string()],
+        auth_headers: vec![("Authorization".to_string(), "env:MY_TOKEN".to_string())],
         ..Default::default()
     };
     let masked = mask_secrets(&config);
-    assert_eq!(masked.auth_headers[0], "Authorization: ***");
+    assert_eq!(
+        masked.auth_headers[0],
+        ("Authorization".to_string(), "***".to_string())
+    );
 }
 
 #[test]
@@ -389,11 +386,14 @@ fn test_mask_secrets_long_value() {
     let config = BakeConfig {
         source_type: "mcp".to_string(),
         source: "https://example.com".to_string(),
-        auth_headers: vec!["X-Key: abcdefghij1234567890x".to_string()],
+        auth_headers: vec![("X-Key".to_string(), "abcdefghij1234567890x".to_string())],
         ..Default::default()
     };
     let masked = mask_secrets(&config);
-    assert_eq!(masked.auth_headers[0], "X-Key: ***");
+    assert_eq!(
+        masked.auth_headers[0],
+        ("X-Key".to_string(), "***".to_string())
+    );
 }
 
 #[test]
@@ -401,11 +401,14 @@ fn test_mask_secrets_short_value_not_masked() {
     let config = BakeConfig {
         source_type: "mcp".to_string(),
         source: "https://example.com".to_string(),
-        auth_headers: vec!["X-Custom: short".to_string()],
+        auth_headers: vec![("X-Custom".to_string(), "short".to_string())],
         ..Default::default()
     };
     let masked = mask_secrets(&config);
-    assert_eq!(masked.auth_headers[0], "X-Custom: short");
+    assert_eq!(
+        masked.auth_headers[0],
+        ("X-Custom".to_string(), "short".to_string())
+    );
 }
 
 #[test]

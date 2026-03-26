@@ -2,6 +2,7 @@ use clap::Parser;
 use mcp2cli::bake::handler::baked_to_argv;
 use mcp2cli::cli::args::{Cli, Commands};
 use mcp2cli::core::helpers::parse_kv_list;
+use mcp2cli::core::types::BakeConfig;
 use mcp2cli::error::AppError;
 use mcp2cli::graphql::handler::GraphqlHandlerOptions;
 use mcp2cli::mcp::handler::McpHandlerOptions;
@@ -46,7 +47,7 @@ async fn main() {
 async fn run() -> mcp2cli::error::Result<()> {
     // Check for @NAME baked config before parsing
     let args: Vec<String> = std::env::args().collect();
-    let argv = detect_baked_config(&args).await;
+    let (argv, bake_config) = detect_baked_config(&args).await;
 
     let cli = Cli::parse_from(&argv);
 
@@ -67,7 +68,21 @@ async fn run() -> mcp2cli::error::Result<()> {
     };
 
     // Parse auth headers (values support env:VAR and file:/path prefixes)
-    let auth_headers = parse_kv_list(&cli.auth_header, true);
+    let auth_headers = parse_kv_list(&cli.auth_header, ':', true);
+
+    // Extract include/exclude/methods filters from bake config (not global CLI flags)
+    let include = bake_config
+        .as_ref()
+        .map(|b| b.include.clone())
+        .unwrap_or_default();
+    let exclude = bake_config
+        .as_ref()
+        .map(|b| b.exclude.clone())
+        .unwrap_or_default();
+    let methods = bake_config
+        .as_ref()
+        .map(|b| b.methods.clone())
+        .unwrap_or_default();
 
     // Parse --env vars into key-value pairs for subprocess injection
     let env_vars: Vec<(String, String)> = cli
@@ -146,9 +161,9 @@ async fn run() -> mcp2cli::error::Result<()> {
             list: cli.list,
             search: cli.search.clone(),
             rest: cli.rest.clone(),
-            include: cli.include.clone(),
-            exclude: cli.exclude.clone(),
-            methods: cli.methods.clone(),
+            include: include.clone(),
+            exclude: exclude.clone(),
+            methods: methods.clone(),
             base_url: cli.base_url.clone(),
             cache_key: cli.cache_key.clone(),
             cache_ttl: cli.cache_ttl.unwrap_or(DEFAULT_CACHE_TTL),
@@ -178,7 +193,7 @@ async fn run() -> mcp2cli::error::Result<()> {
             (cli.mcp.clone().unwrap(), cli.transport.clone(), None)
         };
 
-        let prompt_args = parse_kv_list(&cli.prompt_arg, false);
+        let prompt_args = parse_kv_list(&cli.prompt_arg, '=', false);
         let opts = McpHandlerOptions {
             url,
             transport,
@@ -187,8 +202,8 @@ async fn run() -> mcp2cli::error::Result<()> {
             list: cli.list,
             search: cli.search.clone(),
             rest: cli.rest.clone(),
-            include: cli.include.clone(),
-            exclude: cli.exclude.clone(),
+            include: include.clone(),
+            exclude: exclude.clone(),
             cache_key: cli.cache_key.clone(),
             cache_ttl: cli.cache_ttl.unwrap_or(DEFAULT_CACHE_TTL),
             refresh: cli.refresh,
@@ -212,8 +227,8 @@ async fn run() -> mcp2cli::error::Result<()> {
             list: cli.list,
             search: cli.search.clone(),
             rest: cli.rest.clone(),
-            include: cli.include.clone(),
-            exclude: cli.exclude.clone(),
+            include: include.clone(),
+            exclude: exclude.clone(),
             fields: cli.fields.clone(),
             cache_key: cli.cache_key.clone(),
             cache_ttl: cli.cache_ttl.unwrap_or(DEFAULT_CACHE_TTL),
@@ -233,20 +248,29 @@ async fn run() -> mcp2cli::error::Result<()> {
 }
 
 /// Build an OAuth provider from CLI flags, if OAuth is configured.
+/// Supports --mcp, --graphql, and --spec (with --base-url) as OAuth server sources.
 fn build_oauth_provider_from_cli(
     cli: &Cli,
 ) -> Option<Box<dyn mcp2cli::oauth::provider::OAuthProvider>> {
-    // --oauth is a boolean flag; when set, use the MCP server URL as OAuth server
     if !cli.oauth {
         return None;
     }
 
-    // Derive OAuth server URL from the MCP source URL
-    let oauth_server = cli.mcp.as_deref()?;
+    // Derive OAuth server URL: try --mcp, then --graphql, then --base-url (for --spec)
+    let oauth_server = cli
+        .mcp
+        .as_deref()
+        .or(cli.graphql.as_deref())
+        .or_else(|| {
+            if cli.spec.is_some() {
+                cli.base_url.as_deref()
+            } else {
+                None
+            }
+        })?;
 
     let client_id = cli.oauth_client_id.as_deref()?;
 
-    // Derive token endpoint from server URL (convention: <server>/token)
     let token_endpoint = format!("{}/token", oauth_server.trim_end_matches('/'));
     let auth_endpoint = format!("{}/authorize", oauth_server.trim_end_matches('/'));
 
@@ -262,30 +286,29 @@ fn build_oauth_provider_from_cli(
 
 /// Detect @NAME pattern in argv and expand to baked config args.
 /// If argv[1] starts with '@', load the baked config and reconstruct args.
-async fn detect_baked_config(args: &[String]) -> Vec<String> {
+/// Returns the expanded argv and the BakeConfig (if any) for filter extraction.
+async fn detect_baked_config(args: &[String]) -> (Vec<String>, Option<BakeConfig>) {
     if args.len() > 1 && args[1].starts_with('@') {
         let name = &args[1][1..];
-        // Load baked config synchronously-ish (we're already in async context)
         match mcp2cli::bake::config::load_baked(name).await {
             Ok(Some(config)) => {
                 let mut new_argv = vec![args[0].clone()];
                 new_argv.extend(baked_to_argv(&config));
-                // Append any remaining args after @NAME (e.g., tool name and tool args)
                 if args.len() > 2 {
                     new_argv.extend_from_slice(&args[2..]);
                 }
-                new_argv
+                (new_argv, Some(config))
             }
             Ok(None) => {
                 eprintln!("Warning: baked config '{name}' not found, passing through");
-                args.to_vec()
+                (args.to_vec(), None)
             }
             Err(e) => {
                 eprintln!("Warning: failed to load baked config '{name}': {e}");
-                args.to_vec()
+                (args.to_vec(), None)
             }
         }
     } else {
-        args.to_vec()
+        (args.to_vec(), None)
     }
 }
