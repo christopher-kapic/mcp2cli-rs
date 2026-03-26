@@ -66,8 +66,8 @@ async fn run() -> mcp2cli::error::Result<()> {
         head: cli.head,
     };
 
-    // Parse auth headers
-    let auth_headers = parse_kv_list(&cli.auth_header);
+    // Parse auth headers (values support env:VAR and file:/path prefixes)
+    let auth_headers = parse_kv_list(&cli.auth_header, true);
 
     // Parse --env vars into key-value pairs for subprocess injection
     let env_vars: Vec<(String, String)> = cli
@@ -178,7 +178,7 @@ async fn run() -> mcp2cli::error::Result<()> {
             (cli.mcp.clone().unwrap(), cli.transport.clone(), None)
         };
 
-        let prompt_args = parse_kv_list(&cli.prompt_arg);
+        let prompt_args = parse_kv_list(&cli.prompt_arg, false);
         let opts = McpHandlerOptions {
             url,
             transport,

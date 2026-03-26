@@ -14,6 +14,10 @@ pub fn to_kebab(name: &str) -> String {
 }
 
 /// Resolve a secret value: env:VAR, file:/path, or literal.
+///
+/// When the entire value starts with `env:` or `file:`, the whole value is
+/// resolved. Otherwise, inline `env:VAR_NAME` references are expanded within
+/// the string (e.g. `"Bearer env:MY_TOKEN"` → `"Bearer <token-value>"`).
 pub fn resolve_secret(value: &str) -> Result<String> {
     if let Some(var) = value.strip_prefix("env:") {
         std::env::var(var)
@@ -22,18 +26,46 @@ pub fn resolve_secret(value: &str) -> Result<String> {
         std::fs::read_to_string(path)
             .map(|s| s.trim_end_matches('\n').to_string())
             .map_err(|e| AppError::Cli(format!("cannot read secret file '{path}': {e}")))
+    } else if value.contains("env:") {
+        // Inline env: references — replace each env:VAR_NAME with its value
+        let mut result = value.to_string();
+        while let Some(start) = result.find("env:") {
+            let rest = &result[start + 4..];
+            let end = rest
+                .find(|c: char| !c.is_ascii_alphanumeric() && c != '_')
+                .unwrap_or(rest.len());
+            let var = &rest[..end];
+            let resolved = std::env::var(var)
+                .map_err(|_| AppError::Cli(format!("environment variable '{var}' not set")))?;
+            result = format!("{}{}{}", &result[..start], resolved, &rest[end..]);
+        }
+        Ok(result)
     } else {
         Ok(value.to_string())
     }
 }
 
 /// Parse "Key:Value" pairs into a HashMap.
-pub fn parse_kv_list(items: &[String]) -> HashMap<String, String> {
+/// When `resolve_values` is true, each value is passed through [`resolve_secret`]
+/// so that `env:VAR` and `file:/path` prefixes are resolved at runtime.
+pub fn parse_kv_list(items: &[String], resolve_values: bool) -> HashMap<String, String> {
     items
         .iter()
         .filter_map(|item| {
             let (k, v) = item.split_once(':')?;
-            Some((k.trim().to_string(), v.trim().to_string()))
+            let v = v.trim().to_string();
+            let v = if resolve_values {
+                match resolve_secret(&v) {
+                    Ok(resolved) => resolved,
+                    Err(e) => {
+                        eprintln!("Warning: {e}");
+                        v
+                    }
+                }
+            } else {
+                v
+            };
+            Some((k.trim().to_string(), v))
         })
         .collect()
 }
@@ -60,9 +92,21 @@ mod tests {
     #[test]
     fn test_parse_kv_list() {
         let items = vec!["Authorization: Bearer abc".into(), "X-Api-Key:123".into()];
-        let map = parse_kv_list(&items);
+        let map = parse_kv_list(&items, false);
         assert_eq!(map.get("Authorization").unwrap(), "Bearer abc");
         assert_eq!(map.get("X-Api-Key").unwrap(), "123");
+    }
+
+    #[test]
+    fn test_parse_kv_list_resolve_env() {
+        std::env::set_var("MCP2CLI_TEST_KV", "resolved-token");
+        let items = vec!["Authorization: Bearer env:MCP2CLI_TEST_KV".into()];
+        let map = parse_kv_list(&items, true);
+        assert_eq!(
+            map.get("Authorization").unwrap(),
+            "Bearer resolved-token"
+        );
+        std::env::remove_var("MCP2CLI_TEST_KV");
     }
 
     #[test]
