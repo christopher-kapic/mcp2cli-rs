@@ -2,12 +2,16 @@ use crate::core::types::CommandDef;
 use crate::error::{AppError, Result};
 use std::collections::HashMap;
 
+/// Result of parsing dynamic args: command name, arguments, and whether --stdin was set.
+pub struct ParsedArgs {
+    pub command: String,
+    pub args: HashMap<String, String>,
+    pub stdin: bool,
+}
+
 /// Build a dynamic clap Command from a list of CommandDefs.
-/// Returns the parsed tool name and arguments.
-pub fn parse_dynamic_args(
-    commands: &[CommandDef],
-    argv: &[String],
-) -> Result<(String, HashMap<String, String>)> {
+/// Returns the parsed tool name, arguments, and whether --stdin was requested.
+pub fn parse_dynamic_args(commands: &[CommandDef], argv: &[String]) -> Result<ParsedArgs> {
     if argv.is_empty() {
         return Err(AppError::Cli("no subcommand provided".into()));
     }
@@ -41,7 +45,7 @@ pub fn parse_dynamic_args(
         app = app.arg(
             clap::Arg::new("stdin")
                 .long("stdin")
-                .help("Read request body from stdin")
+                .help("Read request body from stdin (JSON)")
                 .action(clap::ArgAction::SetTrue),
         );
     }
@@ -57,5 +61,11 @@ pub fn parse_dynamic_args(
         }
     }
 
-    Ok((subcmd_name.clone(), args))
+    let stdin = cmd.has_body && matches.get_flag("stdin");
+
+    Ok(ParsedArgs {
+        command: subcmd_name.clone(),
+        args,
+        stdin,
+    })
 }

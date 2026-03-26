@@ -75,16 +75,31 @@ pub async fn handle_graphql(mut opts: GraphqlHandlerOptions) -> Result<()> {
         ));
     }
 
-    let (cmd_name, parsed_args) = parse_dynamic_args(&commands, &opts.rest)?;
+    let parsed = parse_dynamic_args(&commands, &opts.rest)?;
 
     let cmd = commands
         .iter()
-        .find(|c| c.name == cmd_name)
-        .ok_or_else(|| AppError::Cli(format!("unknown command: {cmd_name}")))?;
+        .find(|c| c.name == parsed.command)
+        .ok_or_else(|| AppError::Cli(format!("unknown command: {}", parsed.command)))?;
 
     // 7. Coerce args to typed JSON values
     let mut arguments: HashMap<String, Value> = HashMap::new();
-    for (key, value) in &parsed_args {
+
+    // If --stdin was passed, read JSON from stdin and merge as body
+    if parsed.stdin {
+        let stdin_value = crate::cli::stdin::read_stdin_json()?;
+        if let serde_json::Value::Object(map) = stdin_value {
+            for (k, v) in map {
+                arguments.insert(k, v);
+            }
+        } else {
+            return Err(AppError::Cli(
+                "--stdin expects a JSON object from stdin".into(),
+            ));
+        }
+    }
+
+    for (key, value) in &parsed.args {
         let param = cmd.params.iter().find(|p| p.name == *key);
         if let Some(param) = param {
             let coerced = coerce_value(value, &param.schema)?;

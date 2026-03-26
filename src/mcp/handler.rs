@@ -148,19 +148,34 @@ pub async fn handle_mcp(mut opts: McpHandlerOptions) -> Result<()> {
         ));
     }
 
-    let (cmd_name, parsed_args) = parse_dynamic_args(&commands, &opts.rest)?;
+    let parsed = parse_dynamic_args(&commands, &opts.rest)?;
 
     // Find the matching command to get the original tool name and param schemas
     let cmd = commands
         .iter()
-        .find(|c| c.name == cmd_name)
-        .ok_or_else(|| AppError::Cli(format!("unknown tool: {cmd_name}")))?;
+        .find(|c| c.name == parsed.command)
+        .ok_or_else(|| AppError::Cli(format!("unknown tool: {}", parsed.command)))?;
 
     let tool_name = cmd.tool_name.as_ref().unwrap_or(&cmd.name);
 
     // Coerce args to typed JSON values based on param schemas
     let mut arguments = serde_json::Map::new();
-    for (key, value) in &parsed_args {
+
+    // If --stdin was passed, read JSON from stdin and merge as body
+    if parsed.stdin {
+        let stdin_value = crate::cli::stdin::read_stdin_json()?;
+        if let Value::Object(map) = stdin_value {
+            for (k, v) in map {
+                arguments.insert(k, v);
+            }
+        } else {
+            return Err(AppError::Cli(
+                "--stdin expects a JSON object from stdin".into(),
+            ));
+        }
+    }
+
+    for (key, value) in &parsed.args {
         // Find the param definition to get original name and schema
         let param = cmd.params.iter().find(|p| p.name == *key);
         if let Some(param) = param {

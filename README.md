@@ -65,7 +65,7 @@ mcp2cli --graphql https://countries.trevorblades.com country --code US --pretty
 - **Bake** — save and recall CLI configurations as named profiles, installable as shell commands
 - **Output** — pretty-print, raw, `--jq` filters, `--toon` formatting, `--head` to limit arrays
 - **Caching** — file-based response cache with configurable TTL
-- **Filtering** — `--include` / `--exclude` glob patterns, `--search`, `--methods`
+- **Filtering** — `--search` globally; `--include` / `--exclude` glob patterns and `--methods` in bake configs
 
 ## Authentication
 
@@ -89,6 +89,7 @@ Keep an MCP connection alive across invocations:
 mcp2cli --mcp http://localhost:3000 --session-start my-session
 mcp2cli --session my-session get-user --id 42
 mcp2cli --session my-session --session-stop my-session
+mcp2cli --session-list
 ```
 
 ## Bake (saved configurations)
