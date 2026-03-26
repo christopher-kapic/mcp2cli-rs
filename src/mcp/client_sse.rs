@@ -46,7 +46,8 @@ impl SseMcpClient {
     async fn discover_message_url(&mut self) -> Result<()> {
         use eventsource_stream::Eventsource;
 
-        let mut builder = self.client.get(&self.url);
+        let mut builder = self.client.get(&self.url)
+            .header(reqwest::header::ACCEPT, "text/event-stream");
         for (k, v) in &self.headers {
             builder = builder.header(k, v);
         }
@@ -107,7 +108,9 @@ impl SseMcpClient {
     async fn send_request(&self, request: JsonRpcRequest) -> Result<JsonRpcResponse> {
         let message_url = self.get_message_url()?;
 
-        let mut builder = self.client.post(message_url).json(&request);
+        let mut builder = self.client.post(message_url)
+            .header(reqwest::header::ACCEPT, "application/json, text/event-stream")
+            .json(&request);
         for (k, v) in &self.headers {
             builder = builder.header(k, v);
         }

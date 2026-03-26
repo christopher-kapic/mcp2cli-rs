@@ -44,7 +44,9 @@ impl HttpMcpClient {
     /// Send a JSON-RPC request and return the parsed response.
     /// Handles both application/json and text/event-stream content types.
     async fn send_request(&self, request: JsonRpcRequest) -> Result<JsonRpcResponse> {
-        let mut builder = self.client.post(&self.url).json(&request);
+        let mut builder = self.client.post(&self.url)
+            .header(reqwest::header::ACCEPT, "application/json, text/event-stream")
+            .json(&request);
         for (k, v) in &self.headers {
             builder = builder.header(k, v);
         }
