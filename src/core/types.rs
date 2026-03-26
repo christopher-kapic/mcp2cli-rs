@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParamType {
@@ -58,11 +59,13 @@ pub struct BakeConfig {
     #[serde(default)]
     pub auth_headers: Vec<String>,
     #[serde(default)]
-    pub env_vars: Vec<String>,
+    pub env_vars: HashMap<String, String>,
     #[serde(default)]
     pub cache_ttl: Option<u64>,
     #[serde(default)]
     pub transport: Option<String>,
+    #[serde(default)]
+    pub oauth: Option<bool>,
     #[serde(default)]
     pub oauth_client_id: Option<String>,
     #[serde(default)]
@@ -77,4 +80,6 @@ pub struct BakeConfig {
     pub methods: Vec<String>,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub base_url: Option<String>,
 }

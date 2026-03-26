@@ -218,22 +218,12 @@ async fn test_update_existing() {
     );
     save_baked_all_to(dir.path(), &configs).await.unwrap();
 
-    // Update source and description, keep auth_headers
+    // Simulate an update that changes description (source stays the same in update mode)
     let mut all = load_baked_all_from(dir.path()).await.unwrap();
     let existing = all.get("my-api").unwrap().clone();
-    let updates = BakeConfig {
-        source_type: "mcp".to_string(),
-        source: "https://new.example.com".to_string(),
-        description: Some("new desc".to_string()),
-        ..Default::default()
-    };
-    // Simulate merge: non-empty fields override, empty keep base
     let merged = BakeConfig {
-        source_type: updates.source_type,
-        source: updates.source,
-        auth_headers: existing.auth_headers.clone(), // updates was empty → keep base
-        description: updates.description.or(existing.description),
-        ..Default::default()
+        description: Some("new desc".to_string()),
+        ..existing
     };
     all.insert("my-api".to_string(), merged);
     save_baked_all_to(dir.path(), &all).await.unwrap();
@@ -242,9 +232,12 @@ async fn test_update_existing() {
         .await
         .unwrap()
         .unwrap();
-    assert_eq!(loaded.source, "https://new.example.com");
+    assert_eq!(loaded.source, "https://old.example.com");
     assert_eq!(loaded.description.as_deref(), Some("new desc"));
-    assert_eq!(loaded.auth_headers, vec!["Authorization: Bearer old-tok"]);
+    assert_eq!(
+        loaded.auth_headers,
+        vec!["Authorization: Bearer old-tok".to_string()]
+    );
 }
 
 // ── Round-trip: baked_to_argv ────────────────────────────────────────────────
@@ -260,6 +253,7 @@ fn test_round_trip_mcp() {
         include: vec!["tool-*".to_string()],
         exclude: vec!["internal-*".to_string()],
         methods: vec!["GET".to_string(), "POST".to_string()],
+        oauth: Some(true),
         oauth_client_id: Some("my-client".to_string()),
         oauth_client_secret: Some("my-secret".to_string()),
         oauth_scope: Some("read write".to_string()),
@@ -283,6 +277,7 @@ fn test_round_trip_mcp() {
     assert!(argv.contains(&"--methods".to_string()));
     assert!(argv.contains(&"GET".to_string()));
     assert!(argv.contains(&"POST".to_string()));
+    assert!(argv.contains(&"--oauth".to_string()));
     assert!(argv.contains(&"--oauth-client-id".to_string()));
     assert!(argv.contains(&"my-client".to_string()));
     assert!(argv.contains(&"--oauth-client-secret".to_string()));
@@ -292,11 +287,11 @@ fn test_round_trip_mcp() {
 }
 
 #[test]
-fn test_round_trip_spec() {
+fn test_round_trip_spec_with_base_url() {
     let config = BakeConfig {
         source_type: "spec".to_string(),
         source: "https://petstore.io/spec.json".to_string(),
-        env_vars: vec!["MCP2CLI_BASE_URL=https://api.petstore.io".to_string()],
+        base_url: Some("https://api.petstore.io".to_string()),
         ..Default::default()
     };
     let argv = baked_to_argv(&config);
@@ -322,7 +317,7 @@ fn test_round_trip_graphql() {
 #[test]
 fn test_round_trip_mcp_stdio() {
     let config = BakeConfig {
-        source_type: "mcp-stdio".to_string(),
+        source_type: "mcp_stdio".to_string(),
         source: "npx some-server".to_string(),
         ..Default::default()
     };
@@ -332,26 +327,16 @@ fn test_round_trip_mcp_stdio() {
 }
 
 #[test]
-fn test_round_trip_env_vars_special() {
+fn test_round_trip_env_vars() {
+    let mut env_vars = HashMap::new();
+    env_vars.insert("MY_CUSTOM_VAR".to_string(), "value".to_string());
     let config = BakeConfig {
         source_type: "mcp".to_string(),
         source: "https://example.com".to_string(),
-        env_vars: vec![
-            "MCP2CLI_OAUTH=https://auth.example.com".to_string(),
-            "MCP2CLI_BASE_URL=https://api.example.com".to_string(),
-            "MY_CUSTOM_VAR=value".to_string(),
-        ],
+        env_vars,
         ..Default::default()
     };
     let argv = baked_to_argv(&config);
-
-    // MCP2CLI_OAUTH= becomes --oauth
-    assert!(argv.contains(&"--oauth".to_string()));
-    assert!(argv.contains(&"https://auth.example.com".to_string()));
-    // MCP2CLI_BASE_URL= becomes --base-url
-    assert!(argv.contains(&"--base-url".to_string()));
-    assert!(argv.contains(&"https://api.example.com".to_string()));
-    // Other env vars stay as --env
     assert!(argv.contains(&"--env".to_string()));
     assert!(argv.contains(&"MY_CUSTOM_VAR=value".to_string()));
 }
@@ -477,12 +462,14 @@ async fn test_install_generates_script() {
     .await
     .unwrap();
 
-    // Verify script content
+    // Verify script contains the expected structure (binary path may vary)
     let script_path = install_dir.path().join("my-tool");
     let content = tokio::fs::read_to_string(&script_path).await.unwrap();
-    assert_eq!(content, "#!/bin/sh\nexec mcp2cli @my-tool \"$@\"\n");
+    assert!(content.starts_with("#!/bin/sh\nexec "));
+    assert!(content.contains("@my-tool"));
+    assert!(content.contains("\"$@\""));
 
-    // Verify executable permission
+    // Verify executable permission on unix
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

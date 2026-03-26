@@ -20,7 +20,9 @@ pub async fn bake_install(config_dir: &Path, name: &str, install_dir: Option<&st
     tokio::fs::create_dir_all(&dir).await?;
 
     let script_path = dir.join(name);
-    let script_content = format!("#!/bin/sh\nexec mcp2cli @{name} \"$@\"\n");
+    // Resolve mcp2cli binary path (matching Python's shutil.which behavior)
+    let binary = resolve_mcp2cli_path();
+    let script_content = format!("#!/bin/sh\nexec {binary} @{name} \"$@\"\n");
 
     tokio::fs::write(&script_path, &script_content).await?;
 
@@ -42,6 +44,14 @@ fn default_install_dir() -> Result<PathBuf> {
     dirs::home_dir()
         .map(|h| h.join(".local/bin"))
         .ok_or_else(|| AppError::Cli("Could not determine home directory".into()))
+}
+
+/// Resolve the full path to the mcp2cli binary using PATH lookup.
+/// Falls back to "mcp2cli" if not found in PATH.
+fn resolve_mcp2cli_path() -> String {
+    which::which("mcp2cli")
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "mcp2cli".to_string())
 }
 
 #[cfg(test)]

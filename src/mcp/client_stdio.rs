@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 pub struct StdioMcpClient {
     program: String,
     args: Vec<String>,
+    env_vars: Vec<(String, String)>,
     child: Arc<Mutex<Option<ChildProcess>>>,
 }
 
@@ -22,6 +23,12 @@ struct ChildProcess {
 
 impl StdioMcpClient {
     pub fn new(command: String) -> Self {
+        Self::with_env(command, vec![])
+    }
+
+    /// Create a new stdio client with additional environment variables to inject
+    /// into the child process.
+    pub fn with_env(command: String, env_vars: Vec<(String, String)>) -> Self {
         let parts: Vec<&str> = command.split_whitespace().collect();
         let (program, args) = if parts.is_empty() {
             (command.clone(), vec![])
@@ -34,6 +41,7 @@ impl StdioMcpClient {
         Self {
             program,
             args,
+            env_vars,
             child: Arc::new(Mutex::new(None)),
         }
     }
@@ -45,12 +53,16 @@ impl StdioMcpClient {
             return Ok(());
         }
 
-        let mut child = Command::new(&self.program)
-            .args(&self.args)
+        let mut cmd = Command::new(&self.program);
+        cmd.args(&self.args)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
+            .stderr(std::process::Stdio::null());
+        // Inject --env variables into the child process environment
+        for (key, value) in &self.env_vars {
+            cmd.env(key, value);
+        }
+        let mut child = cmd.spawn()
             .map_err(|e| {
                 AppError::Execution(format!("Failed to spawn '{}': {}", self.program, e))
             })?;

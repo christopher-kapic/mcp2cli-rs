@@ -26,15 +26,8 @@ pub enum AppError {
 
 impl AppError {
     pub fn exit_code(&self) -> i32 {
-        match self {
-            AppError::Cli(_) => 2,
-            AppError::Network(_) => 3,
-            AppError::Protocol(_) => 4,
-            AppError::Execution(_) => 1,
-            AppError::Io(_) => 5,
-            AppError::Json(_) => 6,
-            AppError::Other(_) => 1,
-        }
+        // Match Python mcp2cli: always exit(1) for all error categories
+        1
     }
 }
 

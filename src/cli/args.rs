@@ -29,9 +29,9 @@ pub struct Cli {
     #[arg(long = "auth-header", num_args = 1)]
     pub auth_header: Vec<String>,
 
-    /// OAuth server URL for dynamic registration
+    /// Enable OAuth flow (uses MCP server URL for discovery)
     #[arg(long = "oauth")]
-    pub oauth: Option<String>,
+    pub oauth: bool,
 
     /// OAuth client ID
     #[arg(long = "oauth-client-id")]
@@ -94,12 +94,12 @@ pub struct Cli {
     pub transport: String,
 
     // Filtering
-    /// Include only commands matching glob pattern
-    #[arg(long = "include", num_args = 1)]
+    /// Include only commands matching glob pattern (comma-separated or repeated)
+    #[arg(long = "include", num_args = 1, value_delimiter = ',')]
     pub include: Vec<String>,
 
-    /// Exclude commands matching glob pattern
-    #[arg(long = "exclude", num_args = 1)]
+    /// Exclude commands matching glob pattern (comma-separated or repeated)
+    #[arg(long = "exclude", num_args = 1, value_delimiter = ',')]
     pub exclude: Vec<String>,
 
     /// Filter by HTTP methods (OpenAPI only)
@@ -186,7 +186,10 @@ pub enum BakeAction {
     /// Create a new baked configuration
     Create {
         name: String,
-        #[arg(trailing_var_arg = true)]
+        /// Overwrite existing config if it exists
+        #[arg(long = "force", short = 'f')]
+        force: bool,
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
     /// List all baked configurations
@@ -198,7 +201,7 @@ pub enum BakeAction {
     /// Update a baked configuration
     Update {
         name: String,
-        #[arg(trailing_var_arg = true)]
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
         args: Vec<String>,
     },
     /// Install a baked configuration as a shell command

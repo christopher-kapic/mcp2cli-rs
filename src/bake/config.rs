@@ -9,8 +9,9 @@ pub fn config_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("MCP2CLI_CONFIG_DIR") {
         PathBuf::from(dir)
     } else {
-        dirs::config_dir()
+        dirs::home_dir()
             .unwrap_or_else(|| PathBuf::from("/tmp"))
+            .join(".config")
             .join("mcp2cli")
     }
 }
@@ -103,15 +104,12 @@ pub async fn remove_baked_from(dir: &Path, name: &str) -> Result<bool> {
 }
 
 /// Mask secrets in a BakeConfig for display purposes.
-/// Replaces values that look like secrets (env: prefixed, or containing
-/// "secret", "token", "key", "password") with "***".
 pub fn mask_secrets(config: &BakeConfig) -> BakeConfig {
     let mut masked = config.clone();
     masked.auth_headers = config
         .auth_headers
         .iter()
         .map(|h| {
-            // Format is "Key: Value" — mask the value part if it looks secret
             if let Some(colon_pos) = h.find(':') {
                 let key = &h[..colon_pos];
                 let value = h[colon_pos + 1..].trim();

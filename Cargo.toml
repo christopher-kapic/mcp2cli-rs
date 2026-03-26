@@ -64,6 +64,9 @@ async-trait = "0.1"
 rand = "0.8"
 base64 = "0.22"
 
+# Binary path resolution (for bake install)
+which = "7"
+
 [dev-dependencies]
 wiremock = "0.6"
 tempfile = "3"
