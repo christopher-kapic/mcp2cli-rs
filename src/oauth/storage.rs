@@ -56,7 +56,7 @@ impl FileTokenStorage {
     }
 
     fn client_info_path(&self) -> PathBuf {
-        self.dir.join("client_info.json")
+        self.dir.join("client.json")
     }
 
     /// Read stored tokens, if they exist.

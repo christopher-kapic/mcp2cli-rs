@@ -38,6 +38,8 @@ pub struct McpHandlerOptions {
     pub oauth_provider: Option<Box<dyn crate::oauth::provider::OAuthProvider>>,
     // Session: pre-built client that bypasses transport selection
     pub session_client: Option<Box<dyn crate::mcp::protocol::McpClient>>,
+    // Environment variables to inject into stdio subprocess
+    pub env_vars: Vec<(String, String)>,
 }
 
 /// Main MCP handler — orchestrates transport selection, tool listing, and calling.
@@ -52,7 +54,7 @@ pub async fn handle_mcp(mut opts: McpHandlerOptions) -> Result<()> {
     let mut client = if let Some(session_client) = opts.session_client.take() {
         session_client
     } else {
-        create_client(&opts.url, &opts.transport, &opts.headers).await?
+        create_client(&opts.url, &opts.transport, &opts.headers, opts.env_vars.clone()).await?
     };
 
     // 2. Initialize the connection
@@ -185,11 +187,12 @@ async fn create_client(
     url: &str,
     transport: &str,
     headers: &HashMap<String, String>,
+    env_vars: Vec<(String, String)>,
 ) -> Result<Box<dyn McpClient>> {
     match transport {
-        "stdio" => Ok(Box::new(crate::mcp::client_stdio::StdioMcpClient::new(
-            url.to_string(),
-        ))),
+        "stdio" => Ok(Box::new(
+            crate::mcp::client_stdio::StdioMcpClient::with_env(url.to_string(), env_vars),
+        )),
         "streamable" => Ok(Box::new(crate::mcp::client_http::HttpMcpClient::new(
             url.to_string(),
             headers.clone(),

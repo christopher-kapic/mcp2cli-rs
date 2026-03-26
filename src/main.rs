@@ -9,7 +9,7 @@ use mcp2cli::openapi::handler::OpenApiHandlerOptions;
 use mcp2cli::output::types::OutputOptions;
 use std::process;
 
-const DEFAULT_CACHE_TTL: u64 = 300;
+const DEFAULT_CACHE_TTL: u64 = 3600;
 
 #[tokio::main]
 async fn main() {
@@ -50,6 +50,13 @@ async fn run() -> mcp2cli::error::Result<()> {
 
     let cli = Cli::parse_from(&argv);
 
+    // Validate --jq and --toon mutual exclusivity (matching Python)
+    if cli.jq.is_some() && cli.toon {
+        return Err(AppError::Cli(
+            "Cannot use --jq and --toon together".into(),
+        ));
+    }
+
     // Build output options from CLI flags
     let output_opts = OutputOptions {
         pretty: cli.pretty,
@@ -61,6 +68,16 @@ async fn run() -> mcp2cli::error::Result<()> {
 
     // Parse auth headers
     let auth_headers = parse_kv_list(&cli.auth_header);
+
+    // Parse --env vars into key-value pairs for subprocess injection
+    let env_vars: Vec<(String, String)> = cli
+        .env
+        .iter()
+        .filter_map(|item| {
+            let (k, v) = item.split_once('=')?;
+            Some((k.to_string(), v.to_string()))
+        })
+        .collect();
 
     // Build OAuth provider if OAuth flags are present
     let oauth_provider = build_oauth_provider_from_cli(&cli);
@@ -183,6 +200,7 @@ async fn run() -> mcp2cli::error::Result<()> {
             prompt_args,
             oauth_provider,
             session_client,
+            env_vars,
         };
         mcp2cli::mcp::handler::handle_mcp(opts).await
     } else if let Some(graphql_url) = &cli.graphql {
@@ -218,10 +236,15 @@ async fn run() -> mcp2cli::error::Result<()> {
 fn build_oauth_provider_from_cli(
     cli: &Cli,
 ) -> Option<Box<dyn mcp2cli::oauth::provider::OAuthProvider>> {
-    let client_id = cli.oauth_client_id.as_deref()?;
+    // --oauth is a boolean flag; when set, use the MCP server URL as OAuth server
+    if !cli.oauth {
+        return None;
+    }
 
-    // Need at least --oauth (server URL) to know where to send token requests
-    let oauth_server = cli.oauth.as_deref()?;
+    // Derive OAuth server URL from the MCP source URL
+    let oauth_server = cli.mcp.as_deref()?;
+
+    let client_id = cli.oauth_client_id.as_deref()?;
 
     // Derive token endpoint from server URL (convention: <server>/token)
     let token_endpoint = format!("{}/token", oauth_server.trim_end_matches('/'));

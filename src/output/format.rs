@@ -71,7 +71,7 @@ pub fn output_result(value: &Value, opts: &OutputOptions) -> Result<()> {
 
     // Pipe through toon if requested
     if opts.toon {
-        let result = run_toon(&json_str)?;
+        let result = run_toon(&json_str);
         print!("{result}");
         return Ok(());
     }

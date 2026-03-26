@@ -20,7 +20,7 @@ pub fn resolve_secret(value: &str) -> Result<String> {
             .map_err(|_| AppError::Cli(format!("environment variable '{var}' not set")))
     } else if let Some(path) = value.strip_prefix("file:") {
         std::fs::read_to_string(path)
-            .map(|s| s.trim().to_string())
+            .map(|s| s.trim_end_matches('\n').to_string())
             .map_err(|e| AppError::Cli(format!("cannot read secret file '{path}': {e}")))
     } else {
         Ok(value.to_string())
