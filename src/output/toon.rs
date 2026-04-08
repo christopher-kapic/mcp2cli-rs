@@ -41,9 +41,6 @@ fn run_pipe(
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     } else {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "toon process failed",
-        ))
+        Err(std::io::Error::other("toon process failed"))
     }
 }
