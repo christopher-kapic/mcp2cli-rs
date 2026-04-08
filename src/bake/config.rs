@@ -253,9 +253,18 @@ mod tests {
             ..Default::default()
         };
         let masked = mask_secrets(&config);
-        assert_eq!(masked.auth_headers[0], ("Authorization".to_string(), "***".to_string()));
-        assert_eq!(masked.auth_headers[1], ("X-Custom".to_string(), "short".to_string()));
-        assert_eq!(masked.auth_headers[2], ("X-Key".to_string(), "***".to_string()));
+        assert_eq!(
+            masked.auth_headers[0],
+            ("Authorization".to_string(), "***".to_string())
+        );
+        assert_eq!(
+            masked.auth_headers[1],
+            ("X-Custom".to_string(), "short".to_string())
+        );
+        assert_eq!(
+            masked.auth_headers[2],
+            ("X-Key".to_string(), "***".to_string())
+        );
         assert_eq!(masked.oauth_client_secret, Some("***".to_string()));
     }
 }

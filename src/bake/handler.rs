@@ -117,8 +117,7 @@ fn parse_bake_args_inner(
                 config.oauth_client_id = Some(next_val(args, &mut i, "--oauth-client-id")?);
             }
             "--oauth-client-secret" => {
-                config.oauth_client_secret =
-                    Some(next_val(args, &mut i, "--oauth-client-secret")?);
+                config.oauth_client_secret = Some(next_val(args, &mut i, "--oauth-client-secret")?);
             }
             "--oauth-scope" => {
                 config.oauth_scope = Some(next_val(args, &mut i, "--oauth-scope")?);

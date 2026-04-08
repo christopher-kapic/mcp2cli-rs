@@ -54,7 +54,13 @@ pub async fn handle_mcp(mut opts: McpHandlerOptions) -> Result<()> {
     let mut client = if let Some(session_client) = opts.session_client.take() {
         session_client
     } else {
-        create_client(&opts.url, &opts.transport, &opts.headers, opts.env_vars.clone()).await?
+        create_client(
+            &opts.url,
+            &opts.transport,
+            &opts.headers,
+            opts.env_vars.clone(),
+        )
+        .await?
     };
 
     // 2. Initialize the connection

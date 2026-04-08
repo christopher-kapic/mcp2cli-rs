@@ -114,10 +114,7 @@ mod tests {
         std::env::set_var("MCP2CLI_TEST_KV", "resolved-token");
         let items = vec!["Authorization: Bearer env:MCP2CLI_TEST_KV".into()];
         let map = parse_kv_list(&items, ':', true);
-        assert_eq!(
-            map.get("Authorization").unwrap(),
-            "Bearer resolved-token"
-        );
+        assert_eq!(map.get("Authorization").unwrap(), "Bearer resolved-token");
         std::env::remove_var("MCP2CLI_TEST_KV");
     }
 

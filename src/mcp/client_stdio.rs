@@ -62,10 +62,9 @@ impl StdioMcpClient {
         for (key, value) in &self.env_vars {
             cmd.env(key, value);
         }
-        let mut child = cmd.spawn()
-            .map_err(|e| {
-                AppError::Execution(format!("Failed to spawn '{}': {}", self.program, e))
-            })?;
+        let mut child = cmd.spawn().map_err(|e| {
+            AppError::Execution(format!("Failed to spawn '{}': {}", self.program, e))
+        })?;
 
         let stdin = child
             .stdin

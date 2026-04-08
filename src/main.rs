@@ -53,9 +53,7 @@ async fn run() -> mcp2cli::error::Result<()> {
 
     // Validate --jq and --toon mutual exclusivity (matching Python)
     if cli.jq.is_some() && cli.toon {
-        return Err(AppError::Cli(
-            "Cannot use --jq and --toon together".into(),
-        ));
+        return Err(AppError::Cli("Cannot use --jq and --toon together".into()));
     }
 
     // Build output options from CLI flags
@@ -257,17 +255,13 @@ fn build_oauth_provider_from_cli(
     }
 
     // Derive OAuth server URL: try --mcp, then --graphql, then --base-url (for --spec)
-    let oauth_server = cli
-        .mcp
-        .as_deref()
-        .or(cli.graphql.as_deref())
-        .or_else(|| {
-            if cli.spec.is_some() {
-                cli.base_url.as_deref()
-            } else {
-                None
-            }
-        })?;
+    let oauth_server = cli.mcp.as_deref().or(cli.graphql.as_deref()).or_else(|| {
+        if cli.spec.is_some() {
+            cli.base_url.as_deref()
+        } else {
+            None
+        }
+    })?;
 
     let client_id = cli.oauth_client_id.as_deref()?;
 
