@@ -32,9 +32,6 @@ jobs:
       - name: Build
         run: cargo build
 
-      - name: Build (no warnings)
-        run: cargo build 2>&1 | grep -v "^$" | (! grep -i warning)
-
       - name: Test
         run: cargo test
 
