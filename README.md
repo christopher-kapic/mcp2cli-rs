@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="header.png" alt="mcp2cli — Universal CLI Adapter" width="100%" />
+</p>
+
 # mcp2cli
 
 Universal CLI adapter that turns [MCP](https://modelcontextprotocol.io/) servers, OpenAPI specs, and GraphQL APIs into interactive command-line tools.
