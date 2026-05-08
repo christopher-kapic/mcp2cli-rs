@@ -4,48 +4,45 @@ version = "0.1.7"
 edition = "2021"
 description = "Universal CLI adapter for MCP, OpenAPI, and GraphQL services"
 license = "MIT"
-rust-version = "1.80"
+rust-version = "1.95"
 
 [dependencies]
 # Async runtime
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "process", "io-util", "net", "signal", "fs"] }
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros", "process", "io-util", "net", "signal", "fs"] }
 
 # HTTP client
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream", "multipart"], default-features = false }
+reqwest = { version = "0.13", features = ["json", "rustls", "stream", "multipart", "form", "charset", "http2"], default-features = false }
 
 # Serialization
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-serde_yaml = "0.9"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+yaml-rust2 = "0.11"
 
 # CLI parsing
-clap = { version = "4", features = ["derive", "string"] }
+clap = { version = "4.6", features = ["derive", "string"] }
 
 # URL handling
-url = "2"
-urlencoding = "2"
+url = "2.5"
+urlencoding = "2.1"
 
 # UUID for JSON-RPC request IDs
-uuid = { version = "1", features = ["v4"] }
+uuid = { version = "1.23", features = ["v4"] }
 
 # Error handling
-anyhow = "1"
-thiserror = "2"
+anyhow = "1.0.102"
+thiserror = "2.0.18"
 
 # Hashing (cache keys)
-sha2 = "0.10"
+sha2 = "0.11"
 
 # Glob matching (bake filters)
 glob-match = "0.2"
 
-# OAuth
-oauth2 = "4"
-
 # Local HTTP server (OAuth callback)
-axum = "0.7"
+axum = "0.8"
 
 # Regex (camelCase -> kebab-case)
-regex = "1"
+regex = "1.12"
 
 # XDG directories
 dirs = "6"
@@ -58,17 +55,17 @@ futures-util = "0.3"
 hex = "0.4"
 
 # Async trait support
-async-trait = "0.1"
+async-trait = "0.1.89"
 
 # PKCE code verifier generation
-rand = "0.8"
+rand = "0.10"
 base64 = "0.22"
 
 # Binary path resolution (for bake install)
-which = "7"
+which = "8"
 
 # Shell-style splitting of stdio command strings
-shlex = "1"
+shlex = "1.3"
 
 [dev-dependencies]
 wiremock = "0.6"

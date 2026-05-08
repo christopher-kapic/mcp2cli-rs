@@ -52,7 +52,7 @@ pub async fn execute_graphql(
         if let Some(arr) = errors.as_array() {
             if !arr.is_empty() {
                 // If there's no data, report errors as failure
-                if resp_json.get("data").map_or(true, |d| d.is_null()) {
+                if resp_json.get("data").is_none_or(|d| d.is_null()) {
                     let messages: Vec<String> = arr
                         .iter()
                         .filter_map(|e| e.get("message").and_then(|m| m.as_str()))
