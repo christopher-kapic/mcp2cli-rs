@@ -1,6 +1,6 @@
 [package]
 name = "mcp2cli"
-version = "0.1.6"
+version = "0.1.7"
 edition = "2021"
 description = "Universal CLI adapter for MCP, OpenAPI, and GraphQL services"
 license = "MIT"
