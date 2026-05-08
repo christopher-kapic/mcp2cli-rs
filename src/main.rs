@@ -22,6 +22,7 @@ async fn main() {
             &args[3],
             &args[4],
             args.get(5).map(|s| s.as_str()).unwrap_or("{}"),
+            args.get(6).map(|s| s.as_str()).unwrap_or("[]"),
         )
         .await
         {
@@ -66,7 +67,7 @@ async fn run() -> mcp2cli::error::Result<()> {
     };
 
     // Parse auth headers (values support env:VAR and file:/path prefixes)
-    let auth_headers = parse_kv_list(&cli.auth_header, ':', true);
+    let auth_headers = parse_kv_list(&cli.auth_header, ':', true)?;
 
     // Extract include/exclude/methods filters from bake config (not global CLI flags)
     let include = bake_config
@@ -118,8 +119,14 @@ async fn run() -> mcp2cli::error::Result<()> {
         };
         let headers_map: std::collections::HashMap<String, String> =
             auth_headers.into_iter().collect();
-        return mcp2cli::session::manager::session_start(name, source, transport, &headers_map)
-            .await;
+        return mcp2cli::session::manager::session_start(
+            name,
+            source,
+            transport,
+            &headers_map,
+            &env_vars,
+        )
+        .await;
     }
 
     if let Some(ref name) = cli.session_stop {
@@ -191,7 +198,7 @@ async fn run() -> mcp2cli::error::Result<()> {
             (cli.mcp.clone().unwrap(), cli.transport.clone(), None)
         };
 
-        let prompt_args = parse_kv_list(&cli.prompt_arg, '=', false);
+        let prompt_args = parse_kv_list(&cli.prompt_arg, '=', false)?;
         let opts = McpHandlerOptions {
             url,
             transport,

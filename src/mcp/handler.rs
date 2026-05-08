@@ -8,7 +8,6 @@ use crate::core::coerce::coerce_value;
 use crate::core::filter::filter_commands;
 use crate::error::{AppError, Result};
 use crate::mcp::commands::extract_mcp_commands;
-use crate::mcp::protocol::McpClient;
 use crate::output::format::output_result;
 use crate::output::types::OutputOptions;
 
@@ -54,7 +53,7 @@ pub async fn handle_mcp(mut opts: McpHandlerOptions) -> Result<()> {
     let mut client = if let Some(session_client) = opts.session_client.take() {
         session_client
     } else {
-        create_client(
+        crate::mcp::client::make_client(
             &opts.url,
             &opts.transport,
             &opts.headers,
@@ -201,44 +200,6 @@ pub async fn handle_mcp(mut opts: McpHandlerOptions) -> Result<()> {
     let output = call_result_to_value(&result);
 
     output_result(&output, &opts.output_opts)
-}
-
-/// Create the appropriate MCP client based on transport mode.
-async fn create_client(
-    url: &str,
-    transport: &str,
-    headers: &HashMap<String, String>,
-    env_vars: Vec<(String, String)>,
-) -> Result<Box<dyn McpClient>> {
-    match transport {
-        "stdio" => Ok(Box::new(
-            crate::mcp::client_stdio::StdioMcpClient::with_env(url.to_string(), env_vars),
-        )),
-        "streamable" => Ok(Box::new(crate::mcp::client_http::HttpMcpClient::new(
-            url.to_string(),
-            headers.clone(),
-        ))),
-        "sse" => Ok(Box::new(crate::mcp::client_sse::SseMcpClient::new(
-            url.to_string(),
-            headers.clone(),
-        ))),
-        "auto" => {
-            // Try streamable HTTP first, fall back to SSE on error
-            let mut http_client =
-                crate::mcp::client_http::HttpMcpClient::new(url.to_string(), headers.clone());
-            match http_client.initialize().await {
-                Ok(()) => Ok(Box::new(http_client)),
-                Err(_) => {
-                    let client =
-                        crate::mcp::client_sse::SseMcpClient::new(url.to_string(), headers.clone());
-                    Ok(Box::new(client))
-                }
-            }
-        }
-        other => Err(AppError::Cli(format!(
-            "unknown transport: {other}. Use auto, sse, streamable, or stdio"
-        ))),
-    }
 }
 
 /// Display a list of tools in a user-friendly format.

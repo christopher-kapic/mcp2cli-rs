@@ -48,30 +48,31 @@ pub fn resolve_secret(value: &str) -> Result<String> {
 /// Parse key-value pairs into a HashMap, splitting on the given `delimiter`.
 /// When `resolve_values` is true, each value is passed through [`resolve_secret`]
 /// so that `env:VAR` and `file:/path` prefixes are resolved at runtime.
+///
+/// An unresolvable `env:VAR` (variable not set) or `file:/path` (file not
+/// readable) is a hard error: returning the unresolved literal would silently
+/// transmit `Bearer env:MISSING` to the upstream service, producing confusing
+/// remote auth failures. Pairs missing the `delimiter` are skipped silently.
 pub fn parse_kv_list(
     items: &[String],
     delimiter: char,
     resolve_values: bool,
-) -> HashMap<String, String> {
-    items
-        .iter()
-        .filter_map(|item| {
-            let (k, v) = item.split_once(delimiter)?;
-            let v = v.trim().to_string();
-            let v = if resolve_values {
-                match resolve_secret(&v) {
-                    Ok(resolved) => resolved,
-                    Err(e) => {
-                        eprintln!("Warning: {e}");
-                        v
-                    }
-                }
-            } else {
-                v
-            };
-            Some((k.trim().to_string(), v))
-        })
-        .collect()
+) -> Result<HashMap<String, String>> {
+    let mut map = HashMap::new();
+    for item in items {
+        let (k, v) = match item.split_once(delimiter) {
+            Some(pair) => pair,
+            None => continue,
+        };
+        let v = v.trim().to_string();
+        let v = if resolve_values {
+            resolve_secret(&v)?
+        } else {
+            v
+        };
+        map.insert(k.trim().to_string(), v);
+    }
+    Ok(map)
 }
 
 #[cfg(test)]
@@ -96,7 +97,7 @@ mod tests {
     #[test]
     fn test_parse_kv_list() {
         let items = vec!["Authorization: Bearer abc".into(), "X-Api-Key:123".into()];
-        let map = parse_kv_list(&items, ':', false);
+        let map = parse_kv_list(&items, ':', false).unwrap();
         assert_eq!(map.get("Authorization").unwrap(), "Bearer abc");
         assert_eq!(map.get("X-Api-Key").unwrap(), "123");
     }
@@ -104,7 +105,7 @@ mod tests {
     #[test]
     fn test_parse_kv_list_equals_delimiter() {
         let items = vec!["key1=value1".into(), "key2=value2".into()];
-        let map = parse_kv_list(&items, '=', false);
+        let map = parse_kv_list(&items, '=', false).unwrap();
         assert_eq!(map.get("key1").unwrap(), "value1");
         assert_eq!(map.get("key2").unwrap(), "value2");
     }
@@ -113,9 +114,21 @@ mod tests {
     fn test_parse_kv_list_resolve_env() {
         std::env::set_var("MCP2CLI_TEST_KV", "resolved-token");
         let items = vec!["Authorization: Bearer env:MCP2CLI_TEST_KV".into()];
-        let map = parse_kv_list(&items, ':', true);
+        let map = parse_kv_list(&items, ':', true).unwrap();
         assert_eq!(map.get("Authorization").unwrap(), "Bearer resolved-token");
         std::env::remove_var("MCP2CLI_TEST_KV");
+    }
+
+    #[test]
+    fn test_parse_kv_list_missing_env_is_error() {
+        std::env::remove_var("MCP2CLI_TEST_MISSING_KV");
+        let items = vec!["Authorization: Bearer env:MCP2CLI_TEST_MISSING_KV".into()];
+        let err = parse_kv_list(&items, ':', true).unwrap_err();
+        let msg = format!("{err}");
+        assert!(
+            msg.contains("MCP2CLI_TEST_MISSING_KV"),
+            "expected error to name the missing env var, got: {msg}"
+        );
     }
 
     #[test]

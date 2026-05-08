@@ -1,3 +1,4 @@
+pub mod client;
 pub mod client_http;
 pub mod client_sse;
 pub mod client_stdio;

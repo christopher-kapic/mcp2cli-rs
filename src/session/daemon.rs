@@ -208,20 +208,14 @@ pub async fn daemon_main(
     source: &str,
     transport: &str,
     headers_json: &str,
+    env_json: &str,
 ) -> Result<()> {
     let headers: HashMap<String, String> = serde_json::from_str(headers_json).unwrap_or_default();
+    let env_vars: Vec<(String, String)> = serde_json::from_str(env_json).unwrap_or_default();
 
-    // Create the appropriate MCP client based on transport
-    let client: Box<dyn McpClient> = if transport == "stdio" {
-        Box::new(crate::mcp::client_stdio::StdioMcpClient::new(
-            source.to_string(),
-        ))
-    } else {
-        // Try HTTP first, then SSE for auto
-        let http_client =
-            crate::mcp::client_http::HttpMcpClient::new(source.to_string(), headers.clone());
-        Box::new(http_client)
-    };
+    // Construct the client through the shared factory so direct mode and
+    // session mode honor the same transport semantics (sse, auto, env injection).
+    let client = crate::mcp::client::make_client(source, transport, &headers, env_vars).await?;
 
     let socket_path = super::manager::session_socket_path(name);
     let daemon = SessionDaemon::new(client);
