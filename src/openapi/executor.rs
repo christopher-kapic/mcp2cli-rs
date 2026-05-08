@@ -119,19 +119,32 @@ pub async fn execute_openapi(
             }
             req = req.multipart(form);
         } else {
-            // JSON body
-            let mut body = serde_json::Map::new();
-            for param in &cmd.params {
-                if param.location == ParamLocation::Body {
-                    if let Some(val) = args.get(&param.original_name) {
-                        body.insert(param.original_name.clone(), val.clone());
-                    }
-                }
-            }
-            if !body.is_empty() {
+            // Non-object schema: a single WholeBody param carries the entire body.
+            let whole_body = cmd
+                .params
+                .iter()
+                .find(|p| p.location == ParamLocation::WholeBody)
+                .and_then(|p| args.get(&p.original_name).cloned());
+
+            if let Some(body_value) = whole_body {
                 req = req
                     .header("Content-Type", "application/json")
-                    .json(&Value::Object(body));
+                    .json(&body_value);
+            } else {
+                // Object schema: collect per-property Body params into a map.
+                let mut body = serde_json::Map::new();
+                for param in &cmd.params {
+                    if param.location == ParamLocation::Body {
+                        if let Some(val) = args.get(&param.original_name) {
+                            body.insert(param.original_name.clone(), val.clone());
+                        }
+                    }
+                }
+                if !body.is_empty() {
+                    req = req
+                        .header("Content-Type", "application/json")
+                        .json(&Value::Object(body));
+                }
             }
         }
     }

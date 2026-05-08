@@ -3,6 +3,11 @@ use crate::core::types::{CommandDef, ParamDef, ParamLocation};
 use serde_json::Value;
 use std::collections::HashSet;
 
+/// Sentinel `original_name` used by the synthetic `--body` parameter that
+/// represents a non-object request body. The executor recognizes this key to
+/// send the value as the entire JSON body rather than a single property.
+pub(crate) const WHOLE_BODY_KEY: &str = "__mcp2cli_body__";
+
 /// Extract CommandDefs from an OpenAPI spec.
 /// The spec should already have $refs resolved before calling this.
 pub fn extract_openapi_commands(spec: &Value) -> Vec<CommandDef> {
@@ -325,7 +330,26 @@ fn extract_body_params(operation: &Value, is_multipart: bool) -> Vec<ParamDef> {
                 }
             })
             .collect(),
-        None => vec![],
+        None => {
+            // Non-object body schema (array or primitive). Expose the request
+            // body as a single `--body` argument; the executor sends its value
+            // verbatim as JSON.
+            let description = schema
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("Request body (JSON)")
+                .to_string();
+            vec![ParamDef {
+                name: "body".to_string(),
+                original_name: WHOLE_BODY_KEY.to_string(),
+                rust_type: schema_type_to_rust(schema),
+                required: body_required,
+                description,
+                choices: extract_enum_choices(schema),
+                location: ParamLocation::WholeBody,
+                schema: schema.clone(),
+            }]
+        }
     }
 }
 

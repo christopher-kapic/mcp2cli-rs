@@ -17,6 +17,9 @@ pub enum ParamLocation {
     Query,
     Header,
     Body,
+    /// The entire request body, used when the schema is non-object (array or
+    /// primitive). Only one such param exists per command.
+    WholeBody,
     ToolInput,
     GraphqlArg,
     File,

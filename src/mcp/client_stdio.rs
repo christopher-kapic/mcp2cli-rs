@@ -22,28 +22,33 @@ struct ChildProcess {
 }
 
 impl StdioMcpClient {
-    pub fn new(command: String) -> Self {
+    pub fn new(command: String) -> Result<Self> {
         Self::with_env(command, vec![])
     }
 
     /// Create a new stdio client with additional environment variables to inject
     /// into the child process.
-    pub fn with_env(command: String, env_vars: Vec<(String, String)>) -> Self {
-        let parts: Vec<&str> = command.split_whitespace().collect();
-        let (program, args) = if parts.is_empty() {
-            (command.clone(), vec![])
-        } else {
-            (
-                parts[0].to_string(),
-                parts[1..].iter().map(|s| s.to_string()).collect(),
-            )
-        };
-        Self {
+    ///
+    /// The command string is parsed with POSIX shell-style splitting so that
+    /// quoted arguments containing spaces (e.g. `--root '/tmp/my dir'`) are
+    /// preserved as a single argument.
+    pub fn with_env(command: String, env_vars: Vec<(String, String)>) -> Result<Self> {
+        let parts = shlex::split(&command).ok_or_else(|| {
+            AppError::Cli(format!(
+                "invalid stdio command (unbalanced quotes?): {command}"
+            ))
+        })?;
+        if parts.is_empty() {
+            return Err(AppError::Cli("stdio command is empty".into()));
+        }
+        let program = parts[0].clone();
+        let args = parts[1..].to_vec();
+        Ok(Self {
             program,
             args,
             env_vars,
             child: Arc::new(Mutex::new(None)),
-        }
+        })
     }
 
     /// Ensure the child process is running. Spawns it on first use.

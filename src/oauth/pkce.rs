@@ -202,9 +202,9 @@ impl PkceFlow {
 /// code_verifier: 32 random bytes, base64url-encoded (no padding)
 /// code_challenge: SHA-256 of code_verifier, base64url-encoded (no padding)
 pub fn generate_pkce_pair() -> (String, String) {
-    use rand::RngCore;
+    use rand::Rng;
     let mut verifier_bytes = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut verifier_bytes);
+    rand::rng().fill_bytes(&mut verifier_bytes);
     let code_verifier = base64url_encode(&verifier_bytes);
 
     let mut hasher = Sha256::new();

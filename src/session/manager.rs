@@ -43,6 +43,7 @@ pub async fn session_start(
     source: &str,
     transport: &str,
     headers: &std::collections::HashMap<String, String>,
+    env_vars: &[(String, String)],
 ) -> Result<()> {
     let dir = sessions_dir();
     tokio::fs::create_dir_all(&dir).await?;
@@ -55,6 +56,7 @@ pub async fn session_start(
     }
 
     let headers_json = serde_json::to_string(headers)?;
+    let env_json = serde_json::to_string(env_vars)?;
 
     // Get the path to the current binary
     let exe = std::env::current_exe().map_err(AppError::Io)?;
@@ -66,6 +68,7 @@ pub async fn session_start(
         .arg(source)
         .arg(transport)
         .arg(&headers_json)
+        .arg(&env_json)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
